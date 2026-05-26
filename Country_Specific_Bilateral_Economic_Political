@@ -1,0 +1,598 @@
+from eventregistry import *
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    HRFlowable
+)
+
+from reportlab.lib.styles import (
+    getSampleStyleSheet,
+    ParagraphStyle
+)
+
+from reportlab.lib.pagesizes import letter
+
+from reportlab.lib import colors
+
+from datetime import datetime
+
+from html import unescape
+
+import re
+import os
+
+
+# =========================================================
+# 🔑 EVENT REGISTRY API KEY
+# =========================================================
+
+API_KEY = "c65ceb3b-67a9-415d-aa3a-b68fb0751ee4"
+
+
+# =========================================================
+# 🌍 COUNTRY OPTIONS
+# =========================================================
+# ENABLE ONLY ONE COUNTRY
+# SET VALUE = True
+#
+# Example:
+# India = True
+#
+# =========================================================
+
+COUNTRIES = {
+
+    "India": False,
+
+    "China": False,
+
+    "United States": True,
+
+    "Russia": False,
+
+    "Pakistan": False,
+
+    "Japan": False,
+
+    "Germany": False,
+
+    "France": False,
+
+    "United Kingdom": False
+}
+
+
+# =========================================================
+# 📅 DATE OPTIONS
+# =========================================================
+#
+# OPTIONS:
+#   "today"
+#   "range"
+#
+# =========================================================
+
+DATE_MODE = "today"
+
+DATE_START = "2026-05-01"
+
+DATE_END = "2026-05-10"
+
+
+# =========================================================
+# 📰 ARTICLE LIMIT
+# =========================================================
+
+MAX_ARTICLES = 200
+
+
+# =========================================================
+# 🌍 FIND ENABLED COUNTRY
+# =========================================================
+
+selected_country = None
+
+for country, enabled in COUNTRIES.items():
+
+    if enabled:
+
+        selected_country = country
+
+        break
+
+if not selected_country:
+
+    raise ValueError(
+        "❌ Please enable one country"
+    )
+
+print(f"\n🌍 Selected Country: {selected_country}")
+
+
+# =========================================================
+# 📅 DATE LOGIC
+# =========================================================
+
+if DATE_MODE == "today":
+
+    today = datetime.now().strftime(
+        "%Y-%m-%d"
+    )
+
+    DATE_START = today
+
+    DATE_END = today
+
+    print(f"📅 TODAY MODE: {today}")
+
+elif DATE_MODE == "range":
+
+    print(
+        f"📅 DATE RANGE: "
+        f"{DATE_START} → {DATE_END}"
+    )
+
+else:
+
+    raise ValueError(
+        "❌ Invalid DATE_MODE"
+    )
+
+
+# =========================================================
+# 🔑 EVENT REGISTRY
+# =========================================================
+
+er = EventRegistry(
+    apiKey=API_KEY
+)
+
+
+# =========================================================
+# 🔥 LOAD CONCEPTS
+# =========================================================
+
+print("\n🔥 Loading concepts...\n")
+
+concepts = QueryItems.OR([
+
+    er.getConceptUri("politics"),
+
+    er.getConceptUri("economy"),
+
+    er.getConceptUri("international trade"),
+
+    er.getConceptUri("bilateral relations"),
+
+    er.getConceptUri("diplomacy"),
+
+    er.getConceptUri("foreign policy"),
+
+    er.getConceptUri("government"),
+
+    er.getConceptUri("military")
+])
+
+
+# =========================================================
+# 🌍 COUNTRY FILTER
+# =========================================================
+
+country_uri = er.getLocationUri(
+    selected_country
+)
+
+
+# =========================================================
+# 🧠 NEWS QUERY
+# =========================================================
+
+query = QueryArticlesIter(
+
+    conceptUri=concepts,
+
+    sourceLocationUri=country_uri,
+
+    lang="eng",
+
+    dateStart=DATE_START,
+
+    dateEnd=DATE_END
+)
+
+
+# =========================================================
+# 📄 PDF FILE
+# =========================================================
+
+timestamp = datetime.now().strftime(
+    "%Y%m%d_%H%M%S"
+)
+
+pdf_file = (
+
+    f"{selected_country.lower()}_"
+    f"news_report_"
+    f"{timestamp}.pdf"
+)
+
+
+doc = SimpleDocTemplate(
+
+    pdf_file,
+
+    pagesize=letter,
+
+    rightMargin=35,
+
+    leftMargin=35,
+
+    topMargin=35,
+
+    bottomMargin=35
+)
+
+
+# =========================================================
+# 🎨 PDF STYLES
+# =========================================================
+
+styles = getSampleStyleSheet()
+
+title_style = ParagraphStyle(
+
+    name="TitleStyle",
+
+    parent=styles["Title"],
+
+    fontSize=28,
+
+    leading=34,
+
+    alignment=1,
+
+    textColor=colors.HexColor("#B71C1C"),
+
+    spaceAfter=22
+)
+
+heading_style = ParagraphStyle(
+
+    name="HeadingStyle",
+
+    parent=styles["Heading2"],
+
+    fontSize=16,
+
+    leading=22,
+
+    textColor=colors.HexColor("#0B5394"),
+
+    spaceAfter=10
+)
+
+body_style = ParagraphStyle(
+
+    name="BodyStyle",
+
+    parent=styles["BodyText"],
+
+    fontSize=12,
+
+    leading=20,
+
+    textColor=colors.HexColor("#222222"),
+
+    spaceAfter=12
+)
+
+highlight_style = ParagraphStyle(
+
+    name="HighlightStyle",
+
+    parent=styles["BodyText"],
+
+    fontSize=12,
+
+    leading=18,
+
+    textColor=colors.white,
+
+    backColor=colors.HexColor("#1B5E20"),
+
+    borderPadding=10,
+
+    spaceAfter=16
+)
+
+
+# =========================================================
+# 📦 PDF CONTENT
+# =========================================================
+
+content = []
+
+
+# =========================================================
+# 📰 REPORT HEADER
+# =========================================================
+
+report_title = (
+
+    f"🌍 {selected_country} "
+    f"Geopolitical News Report"
+)
+
+content.append(
+
+    Paragraph(
+        report_title,
+        title_style
+    )
+)
+
+content.append(
+
+    Paragraph(
+
+        f"<b>Generated:</b> "
+        f"{datetime.now()}",
+
+        highlight_style
+    )
+)
+
+content.append(
+
+    Paragraph(
+
+        f"<b>Date Coverage:</b> "
+        f"{DATE_START} to {DATE_END}",
+
+        body_style
+    )
+)
+
+content.append(
+    Spacer(1, 18)
+)
+
+content.append(
+
+    HRFlowable(
+
+        width="100%",
+
+        thickness=3,
+
+        color=colors.HexColor("#FF9933")
+    )
+)
+
+content.append(
+    Spacer(1, 20)
+)
+
+
+# =========================================================
+# 🧹 CLEAN TEXT
+# =========================================================
+
+def clean_text(text):
+
+    if not text:
+
+        return "No summary available."
+
+    text = re.sub(
+        r"<[^>]+>",
+        "",
+        text
+    )
+
+    text = unescape(text)
+
+    text = text.replace(
+        "\x00",
+        ""
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
+
+    return text[:1500]
+
+
+# =========================================================
+# 🔥 FETCH ARTICLES
+# =========================================================
+
+article_count = 0
+
+try:
+
+    for art in query.execQuery(
+
+        er,
+
+        sortBy="date",
+
+        maxItems=MAX_ARTICLES
+    ):
+
+        article_count += 1
+
+        title = clean_text(
+            art.get("title", "N/A")
+        )
+
+        date = art.get(
+            "date",
+            "N/A"
+        )
+
+        source = art.get(
+            "source",
+            {}
+        ).get(
+            "title",
+            "N/A"
+        )
+
+        url = art.get(
+            "url",
+            ""
+        )
+
+        body = art.get(
+            "body",
+            ""
+        )
+
+        summary = art.get(
+            "summary",
+            ""
+        )
+
+        if not body:
+
+            body = summary
+
+        body = clean_text(body)
+
+        print(
+            f"\n📰 {article_count}. {title}"
+        )
+
+        # =================================================
+        # PDF CONTENT
+        # =================================================
+
+        content.append(
+
+            Paragraph(
+
+                f"<b>{article_count}. "
+                f"{title}</b>",
+
+                heading_style
+            )
+        )
+
+        content.append(
+
+            Paragraph(
+
+                f"<b>📅 Date:</b> "
+                f"{date}",
+
+                body_style
+            )
+        )
+
+        content.append(
+
+            Paragraph(
+
+                f"<b>🏢 Source:</b> "
+                f"{source}",
+
+                body_style
+            )
+        )
+
+        if url:
+
+            safe_url = url.replace(
+                "&",
+                "&amp;"
+            )
+
+            content.append(
+
+                Paragraph(
+
+                    f'<b>🌐 URL:</b> '
+                    f'<link href="{safe_url}">'
+                    f'{safe_url}</link>',
+
+                    body_style
+                )
+            )
+
+        content.append(
+
+            Paragraph(
+
+                f"<b>📄 Summary:</b><br/>"
+                f"{body}",
+
+                body_style
+            )
+        )
+
+        content.append(
+            Spacer(1, 16)
+        )
+
+        content.append(
+
+            HRFlowable(
+
+                width="100%",
+
+                thickness=1,
+
+                color=colors.HexColor(
+                    "#DDDDDD"
+                )
+            )
+        )
+
+        content.append(
+            Spacer(1, 16)
+        )
+
+except Exception as e:
+
+    print("\n❌ ERROR")
+
+    print(str(e))
+
+
+# =========================================================
+# 📄 BUILD PDF
+# =========================================================
+
+try:
+
+    doc.build(content)
+
+    print("\n=================================")
+
+    print(
+        "✅ PDF GENERATED SUCCESSFULLY"
+    )
+
+    print(
+        f"📄 File: "
+        f"{os.path.abspath(pdf_file)}"
+    )
+
+    print(
+        f"📰 Total Articles: "
+        f"{article_count}"
+    )
+
+    print("=================================\n")
+
+except Exception as e:
+
+    print("\n❌ PDF GENERATION FAILED")
+
+    print(str(e))

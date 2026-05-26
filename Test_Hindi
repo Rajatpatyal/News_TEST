@@ -1,0 +1,87 @@
+from eventregistry import *
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# 🔥 Register Hindi font (IMPORTANT)
+pdfmetrics.registerFont(TTFont("NotoHindi", "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"))
+
+# API key
+er = EventRegistry(apiKey="c65ceb3b-67a9-415d-aa3a-b68fb0751ee4")
+
+# Concepts (wildcard)
+election_uri = er.getConceptUri("election")
+vote_uri = er.getConceptUri("voting")
+politics_concept = er.getConceptUri("politics")
+
+concepts = QueryItems.OR([election_uri, vote_uri, politics_concept])
+
+# Category + Location
+politics_uri = er.getCategoryUri("politics")
+india_uri = er.getLocationUri("India")
+
+# 🔥 Query in Hindi
+q = QueryArticlesIter(
+    conceptUri=concepts,
+    categoryUri=politics_uri,
+    sourceLocationUri=india_uri,
+    lang="hin"   # 🔥 Hindi
+)
+
+print("\n🔥 भारत चुनाव समाचार (Hindi | 200 Articles)\n")
+
+# PDF setup
+doc = SimpleDocTemplate("election_news_hindi.pdf")
+styles = getSampleStyleSheet()
+
+# 🔥 Increase font size by +4 pts
+custom_style = ParagraphStyle(
+    name="HindiStyle",
+    parent=styles["Normal"],
+    fontName="NotoHindi",
+    fontSize=styles["Normal"].fontSize + 4,
+    leading=18
+)
+
+title_style = ParagraphStyle(
+    name="TitleStyle",
+    parent=styles["Title"],
+    fontName="NotoHindi",
+    fontSize=styles["Title"].fontSize + 4
+)
+
+content = []
+
+# Title
+content.append(Paragraph("भारत चुनाव समाचार रिपोर्ट", title_style))
+content.append(Spacer(1, 12))
+
+# Fetch 200 articles
+for art in q.execQuery(er, sortBy="date", maxItems=200):
+
+    title = art.get("title", "N/A")
+    date = art.get("date", "N/A")
+    source = art.get("source", {}).get("title", "N/A")
+    url = art.get("url", "")
+    body = art.get("body", "")
+
+    # Console print
+    print("📰 Title:", title)
+    print("📅 Date:", date)
+    print("🏢 Source:", source)
+    print("🌐 URL:", url)
+    print("-" * 80)
+
+    # PDF content (Hindi font)
+    content.append(Paragraph(f"<b>शीर्षक:</b> {title}", custom_style))
+    content.append(Paragraph(f"<b>तारीख:</b> {date}", custom_style))
+    content.append(Paragraph(f"<b>स्रोत:</b> {source}", custom_style))
+    content.append(Paragraph(f"<b>लिंक:</b> {url}", custom_style))
+    content.append(Paragraph(f"<b>सारांश:</b> {body[:300]}...", custom_style))
+    content.append(Spacer(1, 14))
+
+# Build PDF
+doc.build(content)
+
+print("\n✅ PDF generated: election_news_hindi.pdf\n")

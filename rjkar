@@ -1,0 +1,220 @@
+# ==========================================================
+# WEST BENGAL BOMB BLAST POLITICAL NEWS SCRAPER
+# Ratna Debnath / RG Kar / Bengal Violence Tracking
+# Generates PDF report using Event Registry API
+# ==========================================================
+
+from eventregistry import *
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    PageBreak
+)
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+from datetime import datetime, timedelta
+
+# ==========================================================
+# API KEY
+# ==========================================================
+
+er = EventRegistry(
+    apiKey="c65ceb3b-67a9-415d-aa3a-b68fb0751ee4"
+)
+
+# ==========================================================
+# SEARCH QUERY
+# ==========================================================
+
+SEARCH_QUERY = """
+West Bengal bomb blast BJP TMC political violence
+Ratna Debnath RG Kar victim mother Panihati blast
+Kolkata explosion crude bomb attack Bengal politics
+"""
+
+# ==========================================================
+# SETTINGS
+# ==========================================================
+
+MAX_ARTICLES = 150
+DAYS_BACK = 15
+
+# ==========================================================
+# DATE RANGE
+# ==========================================================
+
+TODAY = datetime.now()
+
+FROM_DATE = (
+    TODAY - timedelta(days=DAYS_BACK)
+).strftime("%Y-%m-%d")
+
+TO_DATE = TODAY.strftime("%Y-%m-%d")
+
+print("=" * 70)
+print("WEST BENGAL POLITICAL BLAST NEWS SCRAPER")
+print("=" * 70)
+
+print(f"Searching news from {FROM_DATE} to {TO_DATE}")
+
+# ==========================================================
+# QUERY
+# ==========================================================
+
+query = QueryArticlesIter(
+    keywords=SEARCH_QUERY,
+    lang="eng",
+    dateStart=FROM_DATE,
+    dateEnd=TO_DATE,
+    dataType=["news"]
+)
+
+# ==========================================================
+# FETCH ARTICLES
+# ==========================================================
+
+articles = []
+
+print("\nFetching latest political blast articles...\n")
+
+for article in query.execQuery(
+    er,
+    sortBy="date",
+    maxItems=MAX_ARTICLES
+):
+    articles.append(article)
+
+print(f"Total articles fetched: {len(articles)}")
+
+# ==========================================================
+# PDF CONFIG
+# ==========================================================
+
+pdf_name = (
+    f"West_Bengal_Bomb_Blast_Report_{TO_DATE}.pdf"
+)
+
+doc = SimpleDocTemplate(
+    pdf_name,
+    pagesize=letter,
+    rightMargin=40,
+    leftMargin=40,
+    topMargin=40,
+    bottomMargin=30
+)
+
+styles = getSampleStyleSheet()
+
+elements = []
+
+# ==========================================================
+# TITLE PAGE
+# ==========================================================
+
+title = f"""
+<font size=22 color='darkred'>
+<b>West Bengal Political Violence Report</b>
+</font><br/><br/>
+
+<font size=15>
+Bomb Blast / BJP / TMC / Kolkata / Panihati /
+RG Kar Related Political Coverage
+</font><br/><br/>
+
+<b>Date Range:</b> {FROM_DATE} to {TO_DATE}<br/>
+<b>Total Articles:</b> {len(articles)}<br/>
+<b>Generated:</b> {datetime.now().strftime("%d-%m-%Y %H:%M")}
+"""
+
+elements.append(
+    Paragraph(title, styles['Title'])
+)
+
+elements.append(Spacer(1, 30))
+
+intro = """
+This report aggregates recent media coverage
+related to bomb blasts, political violence,
+BJP-TMC clashes, Panihati incidents,
+Ratna Debnath developments,
+and RG Kar-related political events in West Bengal.
+"""
+
+elements.append(
+    Paragraph(intro, styles['BodyText'])
+)
+
+elements.append(PageBreak())
+
+# ==========================================================
+# ARTICLE SECTION
+# ==========================================================
+
+for idx, article in enumerate(articles, start=1):
+
+    title = article.get(
+        "title",
+        "No Title"
+    )
+
+    body = article.get(
+        "body",
+        "No content available"
+    )
+
+    url = article.get("url", "")
+
+    source = article.get(
+        "source",
+        {}
+    ).get(
+        "title",
+        "Unknown Source"
+    )
+
+    date = article.get(
+        "date",
+        "Unknown Date"
+    )
+
+    # Reduce oversized article text
+    if len(body) > 3500:
+        body = body[:3500] + "..."
+
+    content = f"""
+    <font size=14 color='darkblue'>
+    <b>{idx}. {title}</b>
+    </font><br/><br/>
+
+    <b>Source:</b> {source}<br/>
+    <b>Date:</b> {date}<br/><br/>
+
+    <b>Summary:</b><br/>
+    {body}<br/><br/>
+
+    <b>Article URL:</b><br/>
+    <font color='blue'>{url}</font>
+    """
+
+    elements.append(
+        Paragraph(
+            content,
+            styles['BodyText']
+        )
+    )
+
+    elements.append(Spacer(1, 24))
+
+# ==========================================================
+# GENERATE PDF
+# ==========================================================
+
+print("\nGenerating PDF report...\n")
+
+doc.build(elements)
+
+print("=" * 70)
+print("PDF REPORT GENERATED SUCCESSFULLY")
+print(f"Saved File: {pdf_name}")
+print("=" * 70)

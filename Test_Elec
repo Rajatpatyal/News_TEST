@@ -1,0 +1,81 @@
+from eventregistry import *
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+# API key
+er = EventRegistry(apiKey="c65ceb3b-67a9-415d-aa3a-b68fb0751ee4")
+
+# 🔥 Concepts (wildcard style)
+election_uri = er.getConceptUri("election")
+vote_uri = er.getConceptUri("voting")
+politics_concept = er.getConceptUri("politics")
+
+concepts = QueryItems.OR([election_uri, vote_uri, politics_concept])
+
+# Category + Location
+politics_uri = er.getCategoryUri("politics")
+india_uri = er.getLocationUri("India")
+
+# Query
+q = QueryArticlesIter(
+    conceptUri=concepts,
+    categoryUri=politics_uri,
+    sourceLocationUri=india_uri,
+    lang="eng"
+)
+
+print("\n🔥 India Election News (200 Articles | All Sources)\n")
+
+# 🔥 PDF setup
+doc = SimpleDocTemplate("election_news.pdf")
+styles = getSampleStyleSheet()
+
+# 🔥 Increase font size by +4 pts
+custom_style = ParagraphStyle(
+    name="Custom",
+    parent=styles["Normal"],
+    fontSize=styles["Normal"].fontSize + 4,
+    leading=16
+)
+
+title_style = ParagraphStyle(
+    name="TitleCustom",
+    parent=styles["Title"],
+    fontSize=styles["Title"].fontSize + 4
+)
+
+content = []
+
+# Title in PDF
+content.append(Paragraph("India Election News Report", title_style))
+content.append(Spacer(1, 12))
+
+# Fetch articles (🔥 200 now)
+for art in q.execQuery(er, sortBy="date", maxItems=200):
+
+    title = art.get("title", "N/A")
+    date = art.get("date", "N/A")
+    source = art.get("source", {}).get("title", "N/A")
+    url = art.get("url", "")
+    body = art.get("body", "")
+
+    # Console output
+    print("📰 Title:", title)
+    print("📅 Date:", date)
+    print("🏢 Source:", source)
+    print("🌐 URL:", url)
+    print("🧾 Summary:", body[:200], "...\n")
+    print("-" * 80)
+
+    # PDF content
+    content.append(Paragraph(f"<b>Title:</b> {title}", custom_style))
+    content.append(Paragraph(f"<b>Date:</b> {date}", custom_style))
+    content.append(Paragraph(f"<b>Source:</b> {source}", custom_style))
+    content.append(Paragraph(f"<b>URL:</b> {url}", custom_style))
+    content.append(Paragraph(f"<b>Summary:</b> {body[:300]}...", custom_style))
+    content.append(Spacer(1, 14))
+
+# Build PDF
+doc.build(content)
+
+print("\n✅ PDF generated: election_news.pdf\n")

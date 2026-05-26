@@ -1,0 +1,468 @@
+# ==========================================================
+# 🌍 BRICS SUMMIT INDIA NEWS SCRAPER
+# India | BRICS | Geopolitics | Economy
+# Uses Event Registry API
+# Generates PDF Report
+# ==========================================================
+
+from eventregistry import *
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    HRFlowable,
+    PageBreak
+)
+
+from reportlab.lib.styles import (
+    getSampleStyleSheet,
+    ParagraphStyle
+)
+
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+
+from datetime import datetime
+from html import unescape
+
+import re
+import os
+
+# ==========================================================
+# 🔑 EVENT REGISTRY API KEY
+# ==========================================================
+
+YOUR_API_KEY = "YOUR_EVENTREGISTRY_API_KEY"
+
+er = EventRegistry(apiKey=YOUR_API_KEY)
+
+# ==========================================================
+# 📅 DATE RANGE
+# ==========================================================
+
+date_start = "2026-05-10"
+date_end = "2026-05-14"
+
+print(f"\n📅 DATE RANGE ENABLED: {date_start} → {date_end}")
+
+# ==========================================================
+# 🇮🇳 INDIA LOCATION URI
+# ==========================================================
+
+indiaUri = er.getLocationUri("India")
+
+# ==========================================================
+# 🌍 BRICS QUERY
+# ==========================================================
+
+q = QueryArticlesIter(
+
+    keywords="BRICS summit India",
+
+    sourceLocationUri=indiaUri,
+
+    dataType=["news"],
+
+    lang="eng",
+
+    dateStart=date_start,
+
+    dateEnd=date_end
+
+)
+
+print(
+    "\n🌍 BRICS SUMMIT INDIA NEWS "
+    "(200 Articles | News)\n"
+)
+
+# ==========================================================
+# 📄 PDF FILE
+# ==========================================================
+
+timestamp = datetime.now().strftime(
+    "%Y%m%d_%H%M%S"
+)
+
+pdf_file = (
+    f"BRICS_India_news_{timestamp}.pdf"
+)
+
+doc = SimpleDocTemplate(
+
+    pdf_file,
+
+    pagesize=letter,
+
+    rightMargin=35,
+
+    leftMargin=35,
+
+    topMargin=35,
+
+    bottomMargin=35
+)
+
+# ==========================================================
+# 🎨 PDF STYLES
+# ==========================================================
+
+styles = getSampleStyleSheet()
+
+title_style = ParagraphStyle(
+
+    name="TitleStyle",
+
+    parent=styles["Title"],
+
+    fontSize=26,
+
+    leading=34,
+
+    alignment=1,
+
+    textColor=colors.HexColor("#C8102E"),
+
+    spaceAfter=20
+)
+
+heading_style = ParagraphStyle(
+
+    name="HeadingStyle",
+
+    parent=styles["Heading2"],
+
+    fontSize=16,
+
+    leading=22,
+
+    textColor=colors.HexColor("#0B5394"),
+
+    spaceAfter=10
+)
+
+custom_style = ParagraphStyle(
+
+    name="Custom",
+
+    parent=styles["BodyText"],
+
+    fontSize=12,
+
+    leading=18,
+
+    textColor=colors.HexColor("#222222"),
+
+    spaceAfter=12
+)
+
+small_style = ParagraphStyle(
+
+    name="SmallStyle",
+
+    parent=styles["BodyText"],
+
+    fontSize=10,
+
+    leading=14,
+
+    textColor=colors.HexColor("#666666")
+)
+
+highlight_style = ParagraphStyle(
+
+    name="HighlightStyle",
+
+    parent=styles["BodyText"],
+
+    fontSize=12,
+
+    leading=18,
+
+    textColor=colors.white,
+
+    backColor=colors.HexColor("#008080"),
+
+    borderPadding=10,
+
+    spaceAfter=16
+)
+
+# ==========================================================
+# 📦 CONTENT HOLDER
+# ==========================================================
+
+content = []
+
+# ==========================================================
+# 📰 REPORT TITLE
+# ==========================================================
+
+content.append(
+    Paragraph(
+        "🌍 BRICS SUMMIT INDIA REPORT",
+        title_style
+    )
+)
+
+content.append(
+    Paragraph(
+        f"<b>Generated:</b> {datetime.now()}",
+        highlight_style
+    )
+)
+
+content.append(
+    Paragraph(
+        f"Date Range: {date_start} → {date_end}",
+        small_style
+    )
+)
+
+content.append(
+    Spacer(1, 18)
+)
+
+content.append(
+    HRFlowable(
+        width="100%",
+        thickness=3,
+        color=colors.HexColor("#FF9933")
+    )
+)
+
+content.append(
+    Spacer(1, 20)
+)
+
+# ==========================================================
+# 🔥 FETCH ARTICLES
+# ==========================================================
+
+article_count = 0
+
+try:
+
+    print("🔎 Fetching BRICS articles...\n")
+
+    for art in q.execQuery(
+
+        er,
+
+        sortBy="date",
+
+        maxItems=200
+
+    ):
+
+        article_count += 1
+
+        title = art.get("title", "N/A")
+
+        date = art.get("date", "N/A")
+
+        source = art.get(
+            "source",
+            {}
+        ).get(
+            "title",
+            "N/A"
+        )
+
+        url = art.get("url", "")
+
+        body = art.get("body", "")
+
+        summary = art.get("summary", "")
+
+        sentiment = art.get(
+            "sentiment",
+            "N/A"
+        )
+
+        if not body:
+            body = summary
+
+        if not body:
+            body = "No summary available."
+
+        # ==================================================
+        # CLEAN HTML
+        # ==================================================
+
+        body = re.sub(
+            r"<[^>]+>",
+            "",
+            body
+        )
+
+        body = unescape(body)
+
+        body = body.replace(
+            "\x00",
+            ""
+        )
+
+        body = re.sub(
+            r"\s+",
+            " ",
+            body
+        ).strip()
+
+        body = body[:1500]
+
+        title = re.sub(
+            r"<[^>]+>",
+            "",
+            title
+        )
+
+        title = unescape(title)
+
+        # ==================================================
+        # TERMINAL OUTPUT
+        # ==================================================
+
+        print(f"\n📰 ARTICLE {article_count}")
+
+        print(f"📌 {title}")
+
+        print(f"📅 {date}")
+
+        print(f"🏢 {source}")
+
+        print(f"🌐 {url}")
+
+        print("-" * 80)
+
+        # ==================================================
+        # PDF CONTENT
+        # ==================================================
+
+        content.append(
+            Paragraph(
+                f"<b>{article_count}. {title}</b>",
+                heading_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>📅 Date:</b> {date}",
+                custom_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>🏢 Source:</b> {source}",
+                custom_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>😊 Sentiment:</b> {sentiment}",
+                custom_style
+            )
+        )
+
+        if url:
+
+            safe_url = url.replace(
+                "&",
+                "&amp;"
+            )
+
+            content.append(
+                Paragraph(
+                    f'<b>🌐 URL:</b> '
+                    f'<link href="{safe_url}">{safe_url}</link>',
+                    custom_style
+                )
+            )
+
+        content.append(
+            Paragraph(
+                f"<b>📄 Summary:</b><br/>{body}",
+                custom_style
+            )
+        )
+
+        content.append(
+            Spacer(1, 16)
+        )
+
+        content.append(
+            HRFlowable(
+                width="100%",
+                thickness=1,
+                color=colors.HexColor("#DDDDDD")
+            )
+        )
+
+        content.append(
+            Spacer(1, 14)
+        )
+
+        if article_count % 15 == 0:
+
+            content.append(
+                PageBreak()
+            )
+
+except Exception as e:
+
+    print("\n❌ ERROR FETCHING ARTICLES")
+
+    print(str(e))
+
+# ==========================================================
+# 📦 EMPTY RESULT
+# ==========================================================
+
+if article_count == 0:
+
+    print("\n⚠️ No articles found.")
+
+    content.append(
+        Paragraph(
+            "No BRICS summit articles found.",
+            custom_style
+        )
+    )
+
+# ==========================================================
+# 📄 BUILD PDF
+# ==========================================================
+
+try:
+
+    doc.build(content)
+
+    print("\n========================================")
+
+    print("✅ PDF GENERATED SUCCESSFULLY")
+
+    print(
+        f"📄 File: "
+        f"{os.path.abspath(pdf_file)}"
+    )
+
+    print(
+        f"📰 Total Articles: "
+        f"{article_count}"
+    )
+
+    print(
+        "🌍 BRICS INDIA NEWS REPORT CREATED"
+    )
+
+    print("========================================\n")
+
+except Exception as e:
+
+    print("\n❌ PDF GENERATION FAILED")
+
+    print(str(e))

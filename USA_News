@@ -1,0 +1,381 @@
+# ==========================================================
+# 🌍 TODAY BRICS LIVE NEWS SCRAPER
+# Fetches ONLY TODAY'S BRICS News
+# ==========================================================
+
+from eventregistry import *
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    HRFlowable,
+    PageBreak
+)
+
+from reportlab.lib.styles import (
+    getSampleStyleSheet,
+    ParagraphStyle
+)
+
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+
+from datetime import datetime
+from html import unescape
+
+import re
+import os
+
+# ==========================================================
+# 🔑 EVENT REGISTRY API KEY
+# ==========================================================
+
+YOUR_API_KEY = "c65ceb3b-67a9-415d-aa3a-b68fb0751ee4"
+
+er = EventRegistry(apiKey=YOUR_API_KEY)
+
+# ==========================================================
+# 📅 TODAY ONLY
+# ==========================================================
+
+today = datetime.now().strftime("%Y-%m-%d")
+
+date_start = today
+date_end = today
+
+print(f"\n📅 TODAY ONLY MODE: {today}")
+
+# ==========================================================
+# 🌍 BRICS KEYWORDS
+# ==========================================================
+
+search_keywords = (
+    "BRICS OR "
+    "\"BRICS summit\" OR "
+    "\"BRICS foreign ministers\" OR "
+    "\"BRICS India\" OR "
+    "Modi BRICS OR "
+    "Russia China India BRICS"
+)
+
+print(f"\n🔎 SEARCH: {search_keywords}")
+
+# ==========================================================
+# 📰 QUERY
+# ==========================================================
+
+q = QueryArticlesIter(
+
+    keywords=search_keywords,
+
+    dataType=["news"],
+
+    lang="eng",
+
+    dateStart=date_start,
+
+    dateEnd=date_end
+
+)
+
+print(
+    "\n🌍 FETCHING TODAY'S BRICS NEWS...\n"
+)
+
+# ==========================================================
+# 📄 PDF FILE
+# ==========================================================
+
+timestamp = datetime.now().strftime(
+    "%Y%m%d_%H%M%S"
+)
+
+pdf_file = (
+    f"BRICS_Today_Report_{timestamp}.pdf"
+)
+
+doc = SimpleDocTemplate(
+
+    pdf_file,
+
+    pagesize=letter,
+
+    rightMargin=35,
+
+    leftMargin=35,
+
+    topMargin=35,
+
+    bottomMargin=35
+)
+
+# ==========================================================
+# 🎨 STYLES
+# ==========================================================
+
+styles = getSampleStyleSheet()
+
+title_style = ParagraphStyle(
+
+    name="TitleStyle",
+
+    parent=styles["Title"],
+
+    fontSize=26,
+
+    leading=34,
+
+    alignment=1,
+
+    textColor=colors.HexColor("#C8102E"),
+
+    spaceAfter=20
+)
+
+heading_style = ParagraphStyle(
+
+    name="HeadingStyle",
+
+    parent=styles["Heading2"],
+
+    fontSize=16,
+
+    leading=22,
+
+    textColor=colors.HexColor("#0B5394"),
+
+    spaceAfter=10
+)
+
+custom_style = ParagraphStyle(
+
+    name="Custom",
+
+    parent=styles["BodyText"],
+
+    fontSize=12,
+
+    leading=18,
+
+    textColor=colors.HexColor("#222222"),
+
+    spaceAfter=12
+)
+
+# ==========================================================
+# 📦 CONTENT
+# ==========================================================
+
+content = []
+
+content.append(
+    Paragraph(
+        "🌍 TODAY BRICS LIVE REPORT",
+        title_style
+    )
+)
+
+content.append(
+    Spacer(1, 20)
+)
+
+# ==========================================================
+# 🔥 FETCH ARTICLES
+# ==========================================================
+
+article_count = 0
+
+try:
+
+    for art in q.execQuery(
+
+        er,
+
+        sortBy="date",
+
+        maxItems=100
+
+    ):
+
+        article_count += 1
+
+        title = art.get(
+            "title",
+            "N/A"
+        )
+
+        date = art.get(
+            "date",
+            "N/A"
+        )
+
+        source = art.get(
+            "source",
+            {}
+        ).get(
+            "title",
+            "N/A"
+        )
+
+        url = art.get(
+            "url",
+            ""
+        )
+
+        body = art.get(
+            "body",
+            ""
+        )
+
+        summary = art.get(
+            "summary",
+            ""
+        )
+
+        if not body:
+            body = summary
+
+        if not body:
+            body = "No summary available."
+
+        # ==================================================
+        # CLEAN TEXT
+        # ==================================================
+
+        body = re.sub(
+            r"<[^>]+>",
+            "",
+            body
+        )
+
+        body = unescape(body)
+
+        body = re.sub(
+            r"\s+",
+            " ",
+            body
+        ).strip()
+
+        body = body[:1500]
+
+        # ==================================================
+        # TERMINAL OUTPUT
+        # ==================================================
+
+        print(f"\n📰 ARTICLE {article_count}")
+        print(f"📌 {title}")
+        print(f"📅 {date}")
+        print(f"🏢 {source}")
+        print(f"🌐 {url}")
+
+        # ==================================================
+        # PDF CONTENT
+        # ==================================================
+
+        content.append(
+            Paragraph(
+                f"<b>{article_count}. {title}</b>",
+                heading_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>Date:</b> {date}",
+                custom_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>Source:</b> {source}",
+                custom_style
+            )
+        )
+
+        if url:
+
+            safe_url = url.replace(
+                "&",
+                "&amp;"
+            )
+
+            content.append(
+                Paragraph(
+                    (
+                        f'<b>URL:</b> '
+                        f'<link href="{safe_url}">'
+                        f'{safe_url}</link>'
+                    ),
+                    custom_style
+                )
+            )
+
+        content.append(
+            Paragraph(
+                f"<b>Summary:</b><br/>{body}",
+                custom_style
+            )
+        )
+
+        content.append(
+            Spacer(1, 18)
+        )
+
+        content.append(
+            HRFlowable(
+                width="100%",
+                thickness=1,
+                color=colors.HexColor("#CCCCCC")
+            )
+        )
+
+        content.append(
+            Spacer(1, 14)
+        )
+
+        if article_count % 10 == 0:
+
+            content.append(
+                PageBreak()
+            )
+
+except Exception as e:
+
+    print("\n❌ ERROR FETCHING ARTICLES")
+    print(str(e))
+
+# ==========================================================
+# 📦 EMPTY RESULT
+# ==========================================================
+
+if article_count == 0:
+
+    print("\n⚠️ No articles found.")
+
+    content.append(
+        Paragraph(
+            "No BRICS articles found today.",
+            custom_style
+        )
+    )
+
+# ==========================================================
+# 📄 BUILD PDF
+# ==========================================================
+
+try:
+
+    doc.build(content)
+
+    print("\n===================================")
+    print("✅ PDF GENERATED SUCCESSFULLY")
+    print(f"📄 File: {os.path.abspath(pdf_file)}")
+    print(f"📰 Total Articles: {article_count}")
+    print("===================================\n")
+
+except Exception as e:
+
+    print("\n❌ PDF GENERATION FAILED")
+    print(str(e))

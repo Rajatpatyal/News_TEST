@@ -1,0 +1,567 @@
+from eventregistry import *
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    HRFlowable,
+    PageBreak
+)
+
+from reportlab.lib.styles import (
+    getSampleStyleSheet,
+    ParagraphStyle
+)
+
+from reportlab.lib.pagesizes import letter
+
+from reportlab.lib import colors
+
+from datetime import datetime
+
+from html import unescape
+
+import re
+import os
+
+# =========================================================
+# 🔑 EVENT REGISTRY API KEY
+# =========================================================
+
+er = EventRegistry(
+    apiKey="c65ceb3b-67a9-415d-aa3a-b68fb0751ee4"
+)
+
+# =========================================================
+# 📅 DATE MODE
+# =========================================================
+# OPTIONS:
+#   "today"
+#   "range"
+
+date_mode = "today"
+
+# Used only if mode = "range"
+
+date_start = "2026-05-01"
+date_end = "2026-05-05"
+
+# =========================================================
+# 📅 DATE LOGIC
+# =========================================================
+
+if date_mode == "today":
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    date_start = today
+    date_end = today
+
+    print(f"\n📅 TODAY MODE ENABLED: {today}")
+
+elif date_mode == "range":
+
+    print(f"\n📅 DATE RANGE: {date_start} → {date_end}")
+
+else:
+
+    raise ValueError(
+        "❌ Invalid date_mode"
+    )
+
+# =========================================================
+# 🔥 CONCEPTS (WILDCARD STYLE)
+# =========================================================
+
+print("\n🔥 Loading political concepts...\n")
+
+election_uri = er.getConceptUri("election")
+
+vote_uri = er.getConceptUri("voting")
+
+politics_concept = er.getConceptUri("politics")
+
+# OR combination
+
+concepts = QueryItems.OR([
+
+    election_uri,
+
+    vote_uri,
+
+    politics_concept
+
+])
+
+# =========================================================
+# 🇮🇳 CATEGORY + LOCATION
+# =========================================================
+
+politics_uri = er.getCategoryUri("politics")
+
+india_uri = er.getLocationUri("India")
+
+# =========================================================
+# 🧠 QUERY
+# =========================================================
+# THIS STRUCTURE RETURNS FULL 200 ARTICLES
+
+q = QueryArticlesIter(
+
+    conceptUri=concepts,
+
+    categoryUri=politics_uri,
+
+    sourceLocationUri=india_uri,
+
+    lang="eng"
+)
+
+print(
+    "\n🔥 India Election News "
+    "(200 Articles | All Sources)\n"
+)
+
+# =========================================================
+# 📄 PDF FILE
+# =========================================================
+
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+pdf_file = (
+    f"india_election_news_{timestamp}.pdf"
+)
+
+doc = SimpleDocTemplate(
+
+    pdf_file,
+
+    pagesize=letter,
+
+    rightMargin=35,
+
+    leftMargin=35,
+
+    topMargin=35,
+
+    bottomMargin=35
+)
+
+# =========================================================
+# 🎨 VIBRANT PDF STYLES
+# =========================================================
+
+styles = getSampleStyleSheet()
+
+# ---------------------------------------------------------
+# TITLE STYLE
+# ---------------------------------------------------------
+
+title_style = ParagraphStyle(
+
+    name="TitleStyle",
+
+    parent=styles["Title"],
+
+    fontSize=30,
+
+    leading=38,
+
+    alignment=1,
+
+    textColor=colors.HexColor("#FF4500"),
+
+    spaceAfter=22
+)
+
+# ---------------------------------------------------------
+# ARTICLE HEADING STYLE
+# ---------------------------------------------------------
+
+heading_style = ParagraphStyle(
+
+    name="HeadingStyle",
+
+    parent=styles["Heading2"],
+
+    fontSize=17,
+
+    leading=24,
+
+    textColor=colors.HexColor("#0B5394"),
+
+    spaceAfter=10
+)
+
+# ---------------------------------------------------------
+# BODY STYLE
+# ---------------------------------------------------------
+
+custom_style = ParagraphStyle(
+
+    name="Custom",
+
+    parent=styles["BodyText"],
+
+    fontSize=14,
+
+    leading=22,
+
+    textColor=colors.HexColor("#222222"),
+
+    spaceAfter=12
+)
+
+# ---------------------------------------------------------
+# SMALL STYLE
+# ---------------------------------------------------------
+
+small_style = ParagraphStyle(
+
+    name="SmallStyle",
+
+    parent=styles["BodyText"],
+
+    fontSize=10,
+
+    leading=14,
+
+    textColor=colors.HexColor("#666666")
+)
+
+# ---------------------------------------------------------
+# HIGHLIGHT STYLE
+# ---------------------------------------------------------
+
+highlight_style = ParagraphStyle(
+
+    name="HighlightStyle",
+
+    parent=styles["BodyText"],
+
+    fontSize=13,
+
+    leading=20,
+
+    textColor=colors.white,
+
+    backColor=colors.HexColor("#138808"),
+
+    borderPadding=10,
+
+    spaceAfter=16
+)
+
+# =========================================================
+# 📦 CONTENT HOLDER
+# =========================================================
+
+content = []
+
+# =========================================================
+# 📰 REPORT TITLE
+# =========================================================
+
+report_title = (
+    "🇮🇳 India Election & Political News Report"
+)
+
+content.append(
+    Paragraph(
+        report_title,
+        title_style
+    )
+)
+
+content.append(
+    Paragraph(
+        f"<b>Generated:</b> "
+        f"{datetime.now()}",
+        highlight_style
+    )
+)
+
+content.append(
+    Paragraph(
+        "🔥 Trending political, election "
+        "and voting news from India",
+        small_style
+    )
+)
+
+content.append(
+    Spacer(1, 18)
+)
+
+# =========================================================
+# ➖ DIVIDER
+# =========================================================
+
+content.append(
+    HRFlowable(
+        width="100%",
+        thickness=3,
+        color=colors.HexColor("#FF9933")
+    )
+)
+
+content.append(
+    Spacer(1, 20)
+)
+
+# =========================================================
+# 🔥 FETCH ARTICLES
+# =========================================================
+
+article_count = 0
+
+try:
+
+    for art in q.execQuery(
+
+        er,
+
+        sortBy="date",
+
+        maxItems=200
+    ):
+
+        article_count += 1
+
+        # =================================================
+        # SAFE EXTRACTION
+        # =================================================
+
+        title = art.get(
+            "title",
+            "N/A"
+        )
+
+        date = art.get(
+            "date",
+            "N/A"
+        )
+
+        source = art.get(
+            "source",
+            {}
+        ).get(
+            "title",
+            "N/A"
+        )
+
+        url = art.get(
+            "url",
+            ""
+        )
+
+        body = art.get(
+            "body",
+            ""
+        )
+
+        summary = art.get(
+            "summary",
+            ""
+        )
+
+        # =================================================
+        # FALLBACKS
+        # =================================================
+
+        if not body:
+            body = summary
+
+        if not body:
+            body = "No summary available."
+
+        # =================================================
+        # CLEAN HTML / XML
+        # =================================================
+
+        body = re.sub(
+            r"<[^>]+>",
+            "",
+            body
+        )
+
+        body = unescape(body)
+
+        body = body.replace(
+            "\x00",
+            ""
+        )
+
+        body = re.sub(
+            r"\s+",
+            " ",
+            body
+        ).strip()
+
+        body = body[:1500]
+
+        title = re.sub(
+            r"<[^>]+>",
+            "",
+            title
+        )
+
+        title = unescape(title)
+
+        # =================================================
+        # CONSOLE OUTPUT
+        # =================================================
+
+        print(f"\n📰 ARTICLE {article_count}")
+
+        print(f"📌 Title: {title}")
+
+        print(f"📅 Date: {date}")
+
+        print(f"🏢 Source: {source}")
+
+        print(f"🌐 URL: {url}")
+
+        print(f"📄 Summary: {body[:250]}...")
+
+        print("-" * 100)
+
+        # =================================================
+        # PDF CONTENT
+        # =================================================
+
+        content.append(
+            Paragraph(
+                f"<b>{article_count}. "
+                f"{title}</b>",
+                heading_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>📅 Date:</b> "
+                f"{date}",
+                custom_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>🏢 Source:</b> "
+                f"{source}",
+                custom_style
+            )
+        )
+
+        # -------------------------------------------------
+        # SAFE URL
+        # -------------------------------------------------
+
+        if url:
+
+            safe_url = url.replace(
+                "&",
+                "&amp;"
+            )
+
+            content.append(
+                Paragraph(
+                    f'<b>🌐 URL:</b> '
+                    f'<link href="{safe_url}">'
+                    f'{safe_url}</link>',
+                    custom_style
+                )
+            )
+
+        # -------------------------------------------------
+        # SUMMARY
+        # -------------------------------------------------
+
+        content.append(
+            Paragraph(
+                f"<b>📄 Summary:</b><br/>"
+                f"{body}",
+                custom_style
+            )
+        )
+
+        content.append(
+            Spacer(1, 18)
+        )
+
+        content.append(
+            HRFlowable(
+                width="100%",
+                thickness=1,
+                color=colors.HexColor("#DDDDDD")
+            )
+        )
+
+        content.append(
+            Spacer(1, 16)
+        )
+
+        # -------------------------------------------------
+        # PAGE BREAK EVERY 15 ARTICLES
+        # -------------------------------------------------
+
+        if article_count % 15 == 0:
+
+            content.append(
+                PageBreak()
+            )
+
+except Exception as e:
+
+    print("\n❌ ERROR FETCHING ARTICLES")
+
+    print(str(e))
+
+# =========================================================
+# 📦 EMPTY RESULT
+# =========================================================
+
+if article_count == 0:
+
+    content.append(
+        Paragraph(
+            "No political articles found.",
+            custom_style
+        )
+    )
+
+# =========================================================
+# 📄 BUILD PDF
+# =========================================================
+
+try:
+
+    doc.build(content)
+
+    print("\n========================================")
+
+    print("✅ PDF GENERATED SUCCESSFULLY")
+
+    print(
+        f"📄 File: "
+        f"{os.path.abspath(pdf_file)}"
+    )
+
+    print(
+        f"📰 Total Articles: "
+        f"{article_count}"
+    )
+
+    print(
+        "🇮🇳 India Election News "
+        "Report Created"
+    )
+
+    print("========================================\n")
+
+except Exception as e:
+
+    print("\n❌ PDF GENERATION FAILED")
+
+    print(str(e))

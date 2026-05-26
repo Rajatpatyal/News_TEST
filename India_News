@@ -1,0 +1,332 @@
+from eventregistry import *
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    PageBreak
+)
+from reportlab.lib.styles import (
+    getSampleStyleSheet,
+    ParagraphStyle
+)
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+
+from datetime import datetime
+
+from html import unescape
+import re
+import os
+
+# =========================================================
+# 🔑 EVENT REGISTRY API KEY
+# =========================================================
+
+API_KEY = "c65ceb3b-67a9-415d-aa3a-b68fb0751ee4"
+
+er = EventRegistry(apiKey=API_KEY)
+
+# =========================================================
+# 📅 DATE MODE
+# =========================================================
+# OPTIONS:
+#   "today"
+#   "range"
+
+date_mode = "today"
+
+# Used only if date_mode = "range"
+date_start = "2026-05-01"
+date_end = "2026-05-05"
+
+# =========================================================
+# 📅 DATE LOGIC
+# =========================================================
+
+if date_mode == "today":
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    date_start = today
+    date_end = today
+
+    print(f"\n📅 TODAY MODE ENABLED: {today}")
+
+elif date_mode == "range":
+
+    print(f"\n📅 DATE RANGE: {date_start} → {date_end}")
+
+else:
+
+    raise ValueError(
+        "❌ Invalid date_mode. Use 'today' or 'range'."
+    )
+
+# =========================================================
+# 🇮🇳 INDIA NEWS CONFIG
+# =========================================================
+
+location_uri = er.getLocationUri("India")
+
+print("\n🇮🇳 Fetching TRENDING INDIA NEWS...\n")
+
+# =========================================================
+# 🧠 QUERY SETUP
+# =========================================================
+
+q = QueryArticlesIter(
+    sourceLocationUri=location_uri,
+    lang="eng",
+    dateStart=date_start,
+    dateEnd=date_end,
+    isDuplicateFilter="skipDuplicates"
+)
+
+# =========================================================
+# 📄 PDF FILE SETUP
+# =========================================================
+
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+pdf_file = f"india_news_report_{timestamp}.pdf"
+
+doc = SimpleDocTemplate(
+    pdf_file,
+    pagesize=letter,
+    rightMargin=40,
+    leftMargin=40,
+    topMargin=40,
+    bottomMargin=40
+)
+
+# =========================================================
+# 🎨 PDF STYLES
+# =========================================================
+
+styles = getSampleStyleSheet()
+
+title_style = ParagraphStyle(
+    name="TitleStyle",
+    parent=styles["Title"],
+    fontSize=24,
+    leading=30,
+    textColor=colors.darkblue,
+    spaceAfter=20
+)
+
+heading_style = ParagraphStyle(
+    name="HeadingStyle",
+    parent=styles["Heading2"],
+    fontSize=15,
+    leading=20,
+    textColor=colors.darkred,
+    spaceAfter=10
+)
+
+body_style = ParagraphStyle(
+    name="BodyStyle",
+    parent=styles["BodyText"],
+    fontSize=11,
+    leading=16,
+    spaceAfter=10
+)
+
+small_style = ParagraphStyle(
+    name="SmallStyle",
+    parent=styles["BodyText"],
+    fontSize=9,
+    leading=12,
+    textColor=colors.grey
+)
+
+# =========================================================
+# 📦 CONTENT HOLDER
+# =========================================================
+
+content = []
+
+# =========================================================
+# 📰 REPORT TITLE
+# =========================================================
+
+report_title = (
+    f"🇮🇳 India Trending News Report<br/>"
+    f"{date_start} to {date_end}"
+)
+
+content.append(
+    Paragraph(report_title, title_style)
+)
+
+content.append(
+    Paragraph(
+        f"Generated on: {datetime.now()}",
+        small_style
+    )
+)
+
+content.append(Spacer(1, 20))
+
+# =========================================================
+# 🔥 FETCH ARTICLES
+# =========================================================
+
+article_count = 0
+
+try:
+
+    for art in q.execQuery(
+        er,
+        sortBy="socialScore",
+        maxItems=200
+    ):
+
+        article_count += 1
+
+        # =================================================
+        # SAFE FIELD EXTRACTION
+        # =================================================
+
+        title = art.get("title", "N/A")
+
+        date = art.get("date", "N/A")
+
+        source = "N/A"
+
+        if art.get("source"):
+            source = art["source"].get(
+                "title",
+                "N/A"
+            )
+
+        url = art.get("url", "")
+
+        body = art.get("body", "")
+
+        summary = art.get("summary", "")
+
+        # =================================================
+        # BODY FALLBACKS
+        # =================================================
+
+        if not body:
+            body = summary
+
+        if not body:
+            body = "No summary available."
+
+        # =================================================
+        # CLEAN HTML / XML TAGS
+        # =================================================
+
+        # Remove HTML tags
+        body = re.sub(r"<[^>]+>", "", body)
+
+        # Decode HTML entities
+        body = unescape(body)
+
+        # Remove bad unicode chars
+        body = body.replace("\x00", "")
+
+        # Remove multiple spaces/newlines
+        body = re.sub(r"\s+", " ", body).strip()
+
+        # Limit summary size
+        body = body[:1000]
+
+        # Clean title too
+        title = re.sub(r"<[^>]+>", "", title)
+        title = unescape(title)
+
+        # =================================================
+        # CONSOLE OUTPUT
+        # =================================================
+
+        print(f"{article_count}. 📰 {title}")
+
+        # =================================================
+        # ADD ARTICLE TO PDF
+        # =================================================
+
+        content.append(
+            Paragraph(
+                f"<b>{article_count}. {title}</b>",
+                heading_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>📅 Date:</b> {date}",
+                body_style
+            )
+        )
+
+        content.append(
+            Paragraph(
+                f"<b>📰 Source:</b> {source}",
+                body_style
+            )
+        )
+
+        # Safe URL block
+        if url:
+
+            safe_url = (
+                url.replace("&", "&amp;")
+            )
+
+            content.append(
+                Paragraph(
+                    f'<b>🔗 URL:</b> '
+                    f'<link href="{safe_url}">{safe_url}</link>',
+                    body_style
+                )
+            )
+
+        content.append(
+            Paragraph(
+                f"<b>📄 Summary:</b><br/>{body}",
+                body_style
+            )
+        )
+
+        content.append(Spacer(1, 18))
+
+except Exception as e:
+
+    print("\n❌ ERROR FETCHING ARTICLES")
+    print(str(e))
+
+# =========================================================
+# 📦 NO ARTICLES CASE
+# =========================================================
+
+if article_count == 0:
+
+    content.append(
+        Paragraph(
+            "No articles found for selected dates.",
+            body_style
+        )
+    )
+
+# =========================================================
+# 📄 BUILD PDF
+# =========================================================
+
+try:
+
+    doc.build(content)
+
+    print("\n======================================")
+    print("✅ PDF GENERATED SUCCESSFULLY")
+    print(f"📄 File: {os.path.abspath(pdf_file)}")
+    print(f"📰 Total Articles: {article_count}")
+    print("🇮🇳 India Trending News Report Created")
+    print("======================================\n")
+
+except Exception as e:
+
+    print("\n❌ PDF GENERATION FAILED")
+    print(str(e))

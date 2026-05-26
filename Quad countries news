@@ -1,0 +1,128 @@
+from eventregistry import *
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from datetime import datetime
+from xml.sax.saxutils import escape
+import re
+
+# ==============================
+# 🔑 CONFIGURATION
+# ==============================
+
+er = EventRegistry(apiKey="c65ceb3b-67a9-415d-aa3a-b68fb0751ee4")
+
+# DATE MODE
+date_mode = "today"
+
+date_start = "2026-05-01"
+date_end   = "2026-05-05"
+
+# ==============================
+# 📅 DATE HANDLING
+# ==============================
+
+if date_mode == "today":
+    today = datetime.now().strftime("%Y-%m-%d")
+    date_start = today
+    date_end = today
+    print(f"\n📅 Using TODAY mode: {today}\n")
+elif date_mode == "range":
+    print(f"\n📅 Using DATE RANGE: {date_start} → {date_end}\n")
+else:
+    raise ValueError("Invalid date_mode")
+
+# ==============================
+# 🧹 CLEAN FUNCTION
+# ==============================
+
+def clean_text(text):
+    if not text:
+        return "N/A"
+    text = re.sub('<.*?>', '', text)
+    return escape(text)
+
+# ==============================
+# 🌍 LOCATION CONFIG (QUAD)
+# ==============================
+
+usa = er.getLocationUri("United States")
+india = er.getLocationUri("India")
+japan = er.getLocationUri("Japan")
+australia = er.getLocationUri("Australia")
+
+location_uri = QueryItems.OR([
+    usa, india, japan, australia
+])
+
+# ==============================
+# 🧠 QUERY SETUP
+# ==============================
+
+q = QueryArticlesIter(
+    sourceLocationUri=location_uri,
+    lang="eng",
+    dateStart=date_start,
+    dateEnd=date_end,
+    isDuplicateFilter="skipDuplicates"
+)
+
+# ==============================
+# 📄 PDF SETUP
+# ==============================
+
+doc = SimpleDocTemplate("quad_news_report.pdf")
+styles = getSampleStyleSheet()
+
+custom_style = ParagraphStyle(
+    name="Custom",
+    parent=styles["Normal"],
+    fontSize=styles["Normal"].fontSize + 3,
+    leading=15
+)
+
+title_style = ParagraphStyle(
+    name="TitleCustom",
+    parent=styles["Title"],
+    fontSize=styles["Title"].fontSize + 4
+)
+
+content = []
+
+content.append(Paragraph(
+    f"Quad News Report ({date_start} to {date_end})",
+    title_style
+))
+content.append(Spacer(1, 12))
+
+# ==============================
+# 🔥 FETCH ARTICLES
+# ==============================
+
+for art in q.execQuery(
+    er,
+    sortBy="socialScore",
+    maxItems=200
+):
+
+    title = clean_text(art.get("title", "N/A"))
+    date = clean_text(art.get("date", "N/A"))
+    source = clean_text(art.get("source", {}).get("title", "N/A"))
+    url = clean_text(art.get("url", ""))
+    body = clean_text(art.get("body", ""))
+
+    print("📰", title)
+
+    content.append(Paragraph(f"<b>Title:</b> {title}", custom_style))
+    content.append(Paragraph(f"<b>Date:</b> {date}", custom_style))
+    content.append(Paragraph(f"<b>Source:</b> {source}", custom_style))
+    content.append(Paragraph(f"<b>URL:</b> {url}", custom_style))
+    content.append(Paragraph(f"<b>Summary:</b> {body[:300]}...", custom_style))
+    content.append(Spacer(1, 14))
+
+# ==============================
+# 📦 BUILD PDF
+# ==============================
+
+doc.build(content)
+
+print("\n✅ PDF generated: quad_news_report.pdf\n")

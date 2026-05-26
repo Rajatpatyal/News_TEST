@@ -1,0 +1,399 @@
+from eventregistry import *
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer
+)
+
+from reportlab.lib.styles import (
+    getSampleStyleSheet,
+    ParagraphStyle
+)
+
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+
+from datetime import datetime
+from html import unescape
+
+import re
+import os
+
+# =========================================================
+# 🔑 EVENT REGISTRY API KEY
+# =========================================================
+
+API_KEY = "c65ceb3b-67a9-415d-aa3a-b68fb0751ee4"
+
+er = EventRegistry(apiKey=API_KEY)
+
+# =========================================================
+# 📅 DATE MODE
+# =========================================================
+# OPTIONS:
+#   "today"
+#   "range"
+
+date_mode = "today"
+
+# Used only if mode = "range"
+date_start = "2026-05-01"
+date_end = "2026-05-05"
+
+# =========================================================
+# 📅 DATE LOGIC
+# =========================================================
+
+if date_mode == "today":
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    date_start = today
+    date_end = today
+
+    print(f"\n📅 TODAY MODE ENABLED: {today}")
+
+elif date_mode == "range":
+
+    print(f"\n📅 DATE RANGE: {date_start} → {date_end}")
+
+else:
+
+    raise ValueError(
+        "❌ Invalid date_mode. Use 'today' or 'range'."
+    )
+
+# =========================================================
+# 🌍 AFRICA COUNTRIES
+# =========================================================
+
+south_africa = er.getLocationUri("South Africa")
+nigeria = er.getLocationUri("Nigeria")
+egypt = er.getLocationUri("Egypt")
+kenya = er.getLocationUri("Kenya")
+ethiopia = er.getLocationUri("Ethiopia")
+morocco = er.getLocationUri("Morocco")
+ghana = er.getLocationUri("Ghana")
+algeria = er.getLocationUri("Algeria")
+tunisia = er.getLocationUri("Tunisia")
+uganda = er.getLocationUri("Uganda")
+tanzania = er.getLocationUri("Tanzania")
+
+location_uri = QueryItems.OR([
+    south_africa,
+    nigeria,
+    egypt,
+    kenya,
+    ethiopia,
+    morocco,
+    ghana,
+    algeria,
+    tunisia,
+    uganda,
+    tanzania
+])
+
+print("\n🌍 Fetching AFRICA Trending News...\n")
+
+# =========================================================
+# 🧠 QUERY SETUP
+# =========================================================
+
+q = QueryArticlesIter(
+    sourceLocationUri=location_uri,
+    lang="eng",
+    dateStart=date_start,
+    dateEnd=date_end,
+    isDuplicateFilter="skipDuplicates"
+)
+
+# =========================================================
+# 📄 PDF FILE SETUP
+# =========================================================
+
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+pdf_file = f"africa_news_report_{timestamp}.pdf"
+
+doc = SimpleDocTemplate(
+    pdf_file,
+    pagesize=letter,
+    rightMargin=40,
+    leftMargin=40,
+    topMargin=40,
+    bottomMargin=40
+)
+
+# =========================================================
+# 🎨 MODERN AFRICA COLOR THEME
+# =========================================================
+# Theme:
+#   Forest Green
+#   Gold
+#   Dark Slate
+#   Soft Grey
+
+PRIMARY = colors.HexColor("#14532D")      # Forest Green
+SECONDARY = colors.HexColor("#CA8A04")    # Gold
+TEXT = colors.HexColor("#1F2937")         # Dark Slate
+LIGHT = colors.HexColor("#6B7280")        # Grey
+
+# =========================================================
+# 🎨 PDF STYLES
+# =========================================================
+
+styles = getSampleStyleSheet()
+
+title_style = ParagraphStyle(
+    name="TitleStyle",
+    parent=styles["Title"],
+    fontSize=24,
+    leading=30,
+    textColor=PRIMARY,
+    spaceAfter=20
+)
+
+heading_style = ParagraphStyle(
+    name="HeadingStyle",
+    parent=styles["Heading2"],
+    fontSize=15,
+    leading=20,
+    textColor=SECONDARY,
+    spaceAfter=10
+)
+
+body_style = ParagraphStyle(
+    name="BodyStyle",
+    parent=styles["BodyText"],
+    fontSize=11,
+    leading=18,
+    textColor=TEXT,
+    spaceAfter=10
+)
+
+small_style = ParagraphStyle(
+    name="SmallStyle",
+    parent=styles["BodyText"],
+    fontSize=9,
+    leading=12,
+    textColor=LIGHT
+)
+
+# =========================================================
+# 📦 CONTENT HOLDER
+# =========================================================
+
+content = []
+
+# =========================================================
+# 📰 REPORT TITLE
+# =========================================================
+
+report_title = (
+    f"🌍 Africa Trending News Report<br/>"
+    f"{date_start} to {date_end}"
+)
+
+content.append(
+    Paragraph(report_title, title_style)
+)
+
+content.append(
+    Paragraph(
+        f"Generated on: {datetime.now()}",
+        small_style
+    )
+)
+
+content.append(Spacer(1, 20))
+
+# =========================================================
+# 🧹 CLEAN FUNCTION
+# =========================================================
+
+def clean_text(text):
+
+    if not text:
+        return "N/A"
+
+    # Remove HTML tags
+    text = re.sub(r"<[^>]+>", "", text)
+
+    # Decode HTML entities
+    text = unescape(text)
+
+    # Remove null chars
+    text = text.replace("\x00", "")
+
+    # Remove extra spaces
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
+
+# =========================================================
+# 🔥 FETCH ARTICLES
+# =========================================================
+
+article_count = 0
+
+try:
+
+    for art in q.execQuery(
+        er,
+        sortBy="socialScore",
+        maxItems=200
+    ):
+
+        article_count += 1
+
+        # =================================================
+        # SAFE FIELD EXTRACTION
+        # =================================================
+
+        title = clean_text(
+            art.get("title", "N/A")
+        )
+
+        date = clean_text(
+            art.get("date", "N/A")
+        )
+
+        source = "N/A"
+
+        if art.get("source"):
+
+            source = clean_text(
+                art["source"].get(
+                    "title",
+                    "N/A"
+                )
+            )
+
+        url = art.get("url", "")
+
+        body = art.get("body", "")
+
+        summary = art.get("summary", "")
+
+        # =================================================
+        # FALLBACK SUMMARY
+        # =================================================
+
+        if not body:
+            body = summary
+
+        if not body:
+            body = "No summary available."
+
+        body = clean_text(body)
+
+        # Limit summary size
+        body = body[:900]
+
+        # =================================================
+        # CONSOLE OUTPUT
+        # =================================================
+
+        print(f"{article_count}. 📰 {title}")
+
+        # =================================================
+        # ARTICLE TITLE
+        # =================================================
+
+        content.append(
+            Paragraph(
+                f"<b>{article_count}. {title}</b>",
+                heading_style
+            )
+        )
+
+        # =================================================
+        # DATE
+        # =================================================
+
+        content.append(
+            Paragraph(
+                f"<b>📅 Date:</b> {date}",
+                body_style
+            )
+        )
+
+        # =================================================
+        # SOURCE
+        # =================================================
+
+        content.append(
+            Paragraph(
+                f"<b>📰 Source:</b> {source}",
+                body_style
+            )
+        )
+
+        # =================================================
+        # CLICKABLE URL
+        # =================================================
+
+        if url:
+
+            safe_url = url.replace("&", "&amp;")
+
+            content.append(
+                Paragraph(
+                    f'<b>🔗 URL:</b> '
+                    f'<link href="{safe_url}">'
+                    f'{safe_url}</link>',
+                    body_style
+                )
+            )
+
+        # =================================================
+        # SUMMARY
+        # =================================================
+
+        content.append(
+            Paragraph(
+                f"<b>📄 Summary:</b><br/>{body}",
+                body_style
+            )
+        )
+
+        content.append(Spacer(1, 20))
+
+except Exception as e:
+
+    print("\n❌ ERROR FETCHING ARTICLES")
+    print(str(e))
+
+# =========================================================
+# 📦 NO ARTICLES CASE
+# =========================================================
+
+if article_count == 0:
+
+    content.append(
+        Paragraph(
+            "No articles found for selected dates.",
+            body_style
+        )
+    )
+
+# =========================================================
+# 📄 BUILD PDF
+# =========================================================
+
+try:
+
+    doc.build(content)
+
+    print("\n======================================")
+    print("✅ PDF GENERATED SUCCESSFULLY")
+    print(f"📄 File: {os.path.abspath(pdf_file)}")
+    print(f"📰 Total Articles: {article_count}")
+    print("🌍 Africa Trending News Report Created")
+    print("======================================\n")
+
+except Exception as e:
+
+    print("\n❌ PDF GENERATION FAILED")
+    print(str(e))
